@@ -1,5 +1,3 @@
-# MIT 6.008.1x Computational Probability and Inference
-# Author: George H. Chen (georgehc@csail.mit.edu)
 import numpy as np
 import matplotlib.pyplot as plt
 import pandas as pd
@@ -75,10 +73,6 @@ def plot_discrete_histogram(array, frequency=False, figsize=(5, 4)):
     - array: 1D array consisting of data
     - frequency: boolean (True => plot frequencies, False => plot counts)
     - figsize: tuple (width, height) of how large to make the plotted figure
-
-    Output
-    ------
-    - figure: resulting figure that is plotted
     """
     array_as_series = pd.Series(array)
 
@@ -99,3 +93,48 @@ def plot_discrete_histogram(array, frequency=False, figsize=(5, 4)):
     figure.autofmt_xdate()  # rotates x-axis labels to be more readable
 
     plt.tight_layout()  # tidy up and remove some margins
+    
+    
+def print_prob_table_array(probabilities, outcomes):
+    """
+    Prints a probability table that is stored as a 1D array.
+    
+    Input
+    -----
+    - probabilities: a 1D array of nonnegative entries that add to 1
+    - outcomes: list of labels; i-th label is for the i-th entry in
+      <probabilities>
+    """
+    if len(probabilities) != len(outcomes):
+        raise Exception("The number of outcomes and number of probabilities "
+                        + "must match.")
+    print(pd.Series(probabilities, outcomes))
+
+
+def print_joint_prob_table_dict(dicts_in_dict):
+    """
+    Prints a joint probability table that is stored using the dictionaries
+    within a dictionary representation.
+    
+    Input
+    -----
+    - dicts_in_dict: joint probability table stored as dictionaries within a
+      dictionary
+    """
+    print(pd.DataFrame(dicts_in_dict).T)
+    
+    
+def print_joint_prob_table_array(array, row_labels, col_labels):
+    """
+    Prints a joint probability table that is stored using the 2D array
+    representation.
+    
+    Input
+    -----
+    - array: 2D array for the joint probability table (doesn't have label info)
+    - row_labels: list of labels; i-th label is for the i-th row in <array>
+    - col_labels: list of labels; i-th label is for the i-th column in <array>
+    """
+    if len(array.shape) != 2:
+        raise Exception("The array specified must be two-dimensional.")
+    print(pd.DataFrame(array, row_labels, col_labels))
