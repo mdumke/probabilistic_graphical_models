@@ -17,11 +17,11 @@ for x in [1, 2, 4]:
 row_mapping = {x: x - 1 for x in range(1, 5)}
 col_mapping = {y: y - 1 for y in range(1, 4)}
 
-# compute probability table for x
+# compute marginals and probability table for x
 prob_X = prob_X_Y.sum(axis = 1)
 prob_X_table = {x: prob_X[row_mapping[x]] for x in range(1, 5)}
 
-# compute probability table for y
+# compute marginals and probability table for y
 prob_Y = prob_X_Y.sum(axis = 0)
 prob_Y_table = {y: prob_Y[col_mapping[y]] for y in range(1, 4)}
 
