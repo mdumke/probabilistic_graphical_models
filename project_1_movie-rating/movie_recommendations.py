@@ -104,7 +104,6 @@ def compute_posterior(prior, likelihood, y):
     posterior = np.exp(log_answer)
     return posterior
 
-
 def compute_movie_rating_likelihood(M):
     """
     Compute the rating likelihood probability distribution of Y given X where
@@ -130,6 +129,25 @@ def compute_movie_rating_likelihood(M):
     # Remember to normalize the likelihood, so that each column is a
     # probability distribution.
     #
+
+    # 1. compute the unnormalized matrix
+    for y in range(4):
+        for x in range(4):
+            if y == x:
+                likelihood[y, x] = 2
+            else:
+                likelihood[y, x] = 1 / abs(y - x)
+
+    # 2. determine alpha (column-dependent)
+    alphas = 1 / l.sum(axis = 0)
+
+    # 3. re-compute the matrix using alpha
+    for y in range(4):
+        for x in range(4):
+            if y == x:
+                likelihood[y, x] = 2 * alphas[x]
+            else:
+                likelihood[y, x] = alphas[x] / abs(y - x)
 
     #
     # END OF YOUR CODE FOR PART (c)
@@ -224,6 +242,9 @@ def compute_entropy(distribution):
     # Be sure to:
     # - use log base 2
     # - enforce 0log0 = 0
+
+    # stub
+    entropy = 1
 
     #
     # END OF YOUR CODE FOR PART (f)
