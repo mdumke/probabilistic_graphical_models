@@ -17,6 +17,7 @@ import numpy as np
 import scipy
 import scipy.misc
 from sys import exit
+import math
 
 
 def compute_posterior(prior, likelihood, y):
@@ -208,12 +209,15 @@ def infer_true_movie_ratings(num_observations = -1):
     MAP_ratings = np.zeros(num_movies)
 
     for movie_id in movie_id_list:
-        ratings = movie_data_helper.get_ratings(movie_id)[0:num_observations]
+        if num_observations == -1:
+            ratings = movie_data_helper.get_ratings(movie_id)
+        else:
+            ratings = movie_data_helper.get_ratings(movie_id)[0:num_observations]
+
         posteriors[movie_id] = compute_posterior(prior, likelihood, ratings)
 
     for movie_id in movie_id_list:
-        for rating in range(M):
-            MAP_ratings[movie_id] += posteriors[movie_id][rating] * rating
+        MAP_ratings[movie_id] = np.argmax(posteriors[movie_id])
 
     #
     # END OF YOUR CODE FOR PART (d)
@@ -357,11 +361,11 @@ def main():
     # easy for us graders to run your code. You may want to define multiple
     # functions for each of the parts of this problem, and call them here.
 
-#     posteriors, map_ratings = infer_true_movie_ratings()
-# 
-#     best_movies_ids = map_ratings.argsort()[::-1][:74]
-#     for movie_id in best_movies_ids:
-#         print(map_ratings[movie_id], ":", get_movie_name(movie_id))
+    posteriors, map_ratings = infer_true_movie_ratings()
+
+    best_movies_ids = map_ratings.argsort()[::-1][:74]
+    for movie_id in best_movies_ids:
+        print(map_ratings[movie_id], ":", get_movie_name(movie_id))
 
     observations = np.array([10, 50, 100, 150, 200])
     entropies = np.zeros(5)
@@ -372,6 +376,8 @@ def main():
 
     plt.plot(observations, entropies)
     plt.show()
+
+    compute_true_movie_rating_posterior_entropies
 
     #
     # END OF YOUR CODE FOR TESTING
