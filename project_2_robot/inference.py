@@ -35,6 +35,25 @@ def careful_log(x):
         return np.log(x)
 
 
+# Returns the reversed observation model with observations mapping to states
+def compute_reverse_observation_model():
+    # initialize the final dictionary
+    reverse_observations = {}
+
+    for observation in all_possible_observed_states:
+        reverse_observations[observation] = robot.Distribution()
+
+    # collect (unnormalized) observation-probabilities
+    for state in all_possible_hidden_states:
+        possible_observations = observation_model(state)
+
+        for observation in possible_observations:
+            reverse_observations[observation][state] = \
+                possible_observations[observation]
+
+    return reverse_observations
+
+
 # -----------------------------------------------------------------------------
 # Functions for you to implement
 #
@@ -64,11 +83,19 @@ def forward_backward(observations):
     forward_messages[0] = [prior_distribution]
     # TODO: Compute the forward messages
 
+    reverse_observation_model = compute_reverse_observation_model()
+
+    print(observations[0])
+    print(len(all_possible_observed_states))
+
+
+
+
     backward_messages = [None] * num_time_steps
     # TODO: Compute the backward messages
 
     marginals = [None] * num_time_steps # remove this
-    # TODO: Compute the marginals 
+    # TODO: Compute the marginals
 
     return marginals
 
@@ -204,6 +231,10 @@ def main():
     else:
         print('*No marginal computed*')
     print("\n")
+
+    exit(1)
+
+
 
     print('Running Viterbi...')
     estimated_states = Viterbi(observations)
