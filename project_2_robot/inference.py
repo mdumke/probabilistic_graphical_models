@@ -80,19 +80,46 @@ def forward_backward(observations):
 
     num_time_steps = len(observations)
     forward_messages = [None] * num_time_steps
-    forward_messages[0] = [prior_distribution]
-    # TODO: Compute the forward messages
-
+    forward_messages[0] = prior_distribution
     reverse_observation_model = compute_reverse_observation_model()
 
-    print(observations[0])
-    print(len(all_possible_observed_states))
+    # Compute the forward messages
+    print("compute forward messages...")
+
+    # apply for every timestep
+    for time_step in range(1, num_time_steps):
+        print(time_step)
+
+        forward_messages[time_step] = robot.Distribution();
+        observation = observations[time_step - 1]
+
+        # loop through all possible values of next state
+        for goal_state in all_possible_hidden_states:
+
+            probability_sum = 0
+
+            # loop through all non-zero values of previous state
+            for current_state in reverse_observation_model[observation]:
+
+                # multiply obs-model, trans-model, message
+                probability_sum += \
+                    reverse_observation_model[observation][current_state] * \
+                    transition_model(current_state)[goal_state] * \
+                    forward_messages[time_step - 1][current_state]
+
+            if probability_sum > 0:
+                forward_messages[time_step][goal_state] = probability_sum
 
 
-
+    # Compute the backward messages
+    print("compute backward messages")
 
     backward_messages = [None] * num_time_steps
-    # TODO: Compute the backward messages
+
+
+
+    return backward_messages
+
 
     marginals = [None] * num_time_steps # remove this
     # TODO: Compute the marginals
@@ -219,7 +246,7 @@ def main():
                           make_some_observations_missing)
 
     print('Running forward-backward...')
-    marginals = forward_backward(observations)
+    ####marginals = forward_backward(observations)
     print("\n")
 
     timestep = 2
