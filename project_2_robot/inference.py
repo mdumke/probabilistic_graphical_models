@@ -35,9 +35,9 @@ def careful_log(x):
         return np.log(x)
 
 
-# Returns the reversed observation model with observations mapping to states
+# returns the reversed observation model with observations mapping to states
 def compute_reverse_observation_model():
-    # initialize the final dictionary
+    # initialize final distribution
     reverse_observations = {}
 
     for observation in all_possible_observed_states:
@@ -53,6 +53,33 @@ def compute_reverse_observation_model():
 
     return reverse_observations
 
+# returns the reversed transition model given probs of previous states
+def compute_reverse_transition_model():
+    # initialize final distribution
+    reverse_transitions = {}
+
+    for state in all_possible_hidden_states:
+        reverse_transitions[state] = robot.Distribution()
+
+    # collect (unnormalized) reverse transition probabilities
+    for start_state in all_possible_hidden_states:
+        possible_goal_states = transition_model(start_state)
+
+        for goal_state in possible_goal_states:
+            reverse_transitions[goal_state][start_state] = \
+                possible_goal_states[goal_state]
+
+    return reverse_transitions
+
+
+# returns a Distribution with one entry for every state with equal prob
+def generate_uniform_message():
+    message = robot.Distribution()
+
+    for state in all_possible_hidden_states:
+        message[state] = 1 / len(all_possible_hidden_states)
+
+    return message
 
 # -----------------------------------------------------------------------------
 # Functions for you to implement
@@ -88,14 +115,11 @@ def forward_backward(observations):
 
     # apply for every timestep
     for time_step in range(1, num_time_steps):
-        print(time_step)
-
         forward_messages[time_step] = robot.Distribution();
         observation = observations[time_step - 1]
 
         # loop through all possible values of next state
         for goal_state in all_possible_hidden_states:
-
             probability_sum = 0
 
             # loop through all non-zero values of previous state
@@ -115,6 +139,18 @@ def forward_backward(observations):
     print("compute backward messages")
 
     backward_messages = [None] * num_time_steps
+    backward_messages[0] = generate_uniform_message()
+    reverse_transition_model = compute_reverse_transition_model()
+
+
+
+#     probability_sum = 0
+# 
+#     probability_sum += \
+#         reverse_observation_model[obs3][x3] * \
+#         reverse_transition_model[x3][x2] * \
+#         backward_messages[0][x3]
+# 
 
 
 
