@@ -115,7 +115,7 @@ def forward_backward(observations):
 
     # apply for every timestep
     for time_step in range(1, num_time_steps):
-        forward_messages[time_step] = robot.Distribution();
+        forward_messages[time_step] = robot.Distribution()
         observation = observations[time_step - 1]
 
         # loop through all possible values of next state
@@ -136,23 +136,34 @@ def forward_backward(observations):
 
 
     # Compute the backward messages
+    # note: order will be reverse! backward_messages[0] will hold the message
+    #       coming in to the *last* hidden state
     print("compute backward messages")
 
     backward_messages = [None] * num_time_steps
     backward_messages[0] = generate_uniform_message()
     reverse_transition_model = compute_reverse_transition_model()
 
+    # apply for every time step
+    for time_step in range(1, num_time_steps):
+        backward_messages[time_step] = robot.Distribution()
+        observation = observations[num_time_steps - time_step]
 
+        # create a table-entry for every possible value
+        for goal_state in all_possible_hidden_states:
+            probability_sum = 0
 
-#     probability_sum = 0
-# 
-#     probability_sum += \
-#         reverse_observation_model[obs3][x3] * \
-#         reverse_transition_model[x3][x2] * \
-#         backward_messages[0][x3]
-# 
+            # look only at non-zero values allowed by the observation
+            for current_state in reverse_observation_model[observation]:
 
+                # multiply obs-model, reverse-trans-model, back-message
+                probability_sum += \
+                    reverse_observation_model[observation][current_state] * \
+                    reverse_transition_model[current_state][goal_state] * \
+                    backward_messages[time_step - 1][current_state]
 
+            if probability_sum > 0:
+                backward_messages[time_step][goal_state] = probability_sum
 
     return backward_messages
 
