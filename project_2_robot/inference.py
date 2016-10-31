@@ -111,7 +111,7 @@ def forward_backward(observations):
     reverse_observation_model = compute_reverse_observation_model()
 
     # Compute the forward messages
-    print("compute forward messages...")
+    print("  - compute forward messages...")
 
     # apply for every timestep
     for time_step in range(1, num_time_steps):
@@ -134,11 +134,10 @@ def forward_backward(observations):
             if probability_sum > 0:
                 forward_messages[time_step][goal_state] = probability_sum
 
-
     # Compute the backward messages
     # note: order will be reverse! backward_messages[0] will hold the message
     #       coming in to the *last* hidden state
-    print("compute backward messages")
+    print("  - compute backward messages")
 
     backward_messages = [None] * num_time_steps
     backward_messages[0] = generate_uniform_message()
@@ -165,11 +164,25 @@ def forward_backward(observations):
             if probability_sum > 0:
                 backward_messages[time_step][goal_state] = probability_sum
 
-    return backward_messages
-
+    # Compute the marginals
+    print("  - compute marginals")
 
     marginals = [None] * num_time_steps # remove this
-    # TODO: Compute the marginals
+
+    for time_step in range(0, num_time_steps):
+        marginals[time_step] = robot.Distribution()
+
+        for state in all_possible_hidden_states:
+            probability = \
+                reverse_observation_model[observations[time_step]][state] * \
+                forward_messages[time_step][state] * \
+                backward_messages[num_time_steps - 1 - time_step][state]
+
+            if probability > 0:
+                marginals[time_step][state] = probability
+
+    for px in marginals:
+        px.renormalize()
 
     return marginals
 
@@ -293,7 +306,7 @@ def main():
                           make_some_observations_missing)
 
     print('Running forward-backward...')
-    ####marginals = forward_backward(observations)
+    marginals = forward_backward(observations)
     print("\n")
 
     timestep = 2
@@ -305,6 +318,8 @@ def main():
     else:
         print('*No marginal computed*')
     print("\n")
+
+
 
     exit(1)
 
