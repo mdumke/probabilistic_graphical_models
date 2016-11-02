@@ -122,14 +122,19 @@ def forward_backward(observations):
         for goal_state in all_possible_hidden_states:
             probability_sum = 0
 
-            # loop through all non-zero values of previous state
-            for current_state in reverse_observation_model[observation]:
-
-                # multiply obs-model, trans-model, message
-                probability_sum += \
-                    reverse_observation_model[observation][current_state] * \
-                    transition_model(current_state)[goal_state] * \
-                    forward_messages[time_step - 1][current_state]
+            if observation:
+                # loop through all non-zero values of previous state
+                for current_state in reverse_observation_model[observation]:
+                    # multiply obs-model, trans-model, message
+                    probability_sum += \
+                        reverse_observation_model[observation][current_state] * \
+                        transition_model(current_state)[goal_state] * \
+                        forward_messages[time_step - 1][current_state]
+            else:
+                for current_state in forward_messages[time_step -1]:
+                    probability_sum += \
+                        transition_model(current_state)[goal_state] * \
+                        forward_messages[time_step - 1][current_state]
 
             if probability_sum > 0:
                 forward_messages[time_step][goal_state] = probability_sum
@@ -152,14 +157,19 @@ def forward_backward(observations):
         for goal_state in all_possible_hidden_states:
             probability_sum = 0
 
-            # look only at non-zero values allowed by the observation
-            for current_state in reverse_observation_model[observation]:
-
-                # multiply obs-model, reverse-trans-model, back-message
-                probability_sum += \
-                    reverse_observation_model[observation][current_state] * \
-                    reverse_transition_model[current_state][goal_state] * \
-                    backward_messages[time_step - 1][current_state]
+            if observation:
+                # look only at non-zero values allowed by the observation
+                for current_state in reverse_observation_model[observation]:
+                    # multiply obs-model, reverse-trans-model, back-message
+                    probability_sum += \
+                        reverse_observation_model[observation][current_state] * \
+                        reverse_transition_model[current_state][goal_state] * \
+                        backward_messages[time_step - 1][current_state]
+            else:
+                for current_state in backward_messages[time_step - 1]:
+                    probability_sum += \
+                        reverse_transition_model[current_state][goal_state] * \
+                        backward_messages[time_step - 1][current_state]
 
             if probability_sum > 0:
                 backward_messages[time_step][goal_state] = probability_sum
@@ -171,12 +181,18 @@ def forward_backward(observations):
 
     for time_step in range(0, num_time_steps):
         marginals[time_step] = robot.Distribution()
+        observation = observations[time_step]
 
         for state in all_possible_hidden_states:
-            probability = \
-                reverse_observation_model[observations[time_step]][state] * \
-                forward_messages[time_step][state] * \
-                backward_messages[num_time_steps - 1 - time_step][state]
+            if observation:
+                probability = \
+                    reverse_observation_model[observation][state] * \
+                    forward_messages[time_step][state] * \
+                    backward_messages[num_time_steps - 1 - time_step][state]
+            else:
+                probability = \
+                    forward_messages[time_step][state] * \
+                    backward_messages[num_time_steps - 1 - time_step][state]
 
             if probability > 0:
                 marginals[time_step][state] = probability
@@ -309,7 +325,8 @@ def main():
     marginals = forward_backward(observations)
     print("\n")
 
-    timestep = 2
+    #timestep = 2
+    timestep = 99
     print("Most likely parts of marginal at time %d:" % (timestep))
     if marginals[timestep] is not None:
         print(sorted(marginals[timestep].items(),
