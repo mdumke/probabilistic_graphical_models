@@ -53,6 +53,24 @@ def compute_reverse_observation_model():
 
     return reverse_observations
 
+# returns the reversed observation model with a ln-transformation
+def compute_log_reverse_observation_model():
+    # initialize final distribution
+    reverse_observations = {}
+
+    for observation in all_possible_observed_states:
+        reverse_observations[observation] = robot.Distribution()
+
+    # collect (unnormalized) observation-probabilities
+    for state in all_possible_hidden_states:
+        possible_observations = observation_model(state)
+
+        for observation in possible_observations:
+            reverse_observations[observation][state] = \
+                careful_log(possible_observations[observation])
+
+    return reverse_observations
+
 # returns the reversed transition model given probs of previous states
 def compute_reverse_transition_model():
     # initialize final distribution
@@ -199,19 +217,11 @@ def forward_backward(observations):
     return marginals
 
 
-def MAPEstimate(observation):
-    """
-    Input
-    -----
-    observation: a list containing a single observation or None
-
-    Output
-    ------
-    A list of the estimated corresponding state, encoded as a tuple
-    (<x>, <y>, <action>)
-    """
+# returns the state with maximum probability as a single-element list
+def MAP_estimate(observation):
     # without observation, all prior states are equally likely
-    if not observation[0]: return list(prior_distribution.keys())[0]
+    if not observation[0]:
+        return list(prior_distribution.keys())[0]
 
     reverse_observation_model = compute_reverse_observation_model()
 
@@ -230,6 +240,16 @@ def MAPEstimate(observation):
     return [argmax]
 
 
+# returns a new distribution with all entries negative-log-transformed
+def transform_prior_distribution_to_log_messages():
+    new_distribution = robot.Distribution()
+
+    for state in all_possible_hidden_states:
+        new_distribution[state] = -careful_log(prior_distribution[state])
+
+    return new_distribution
+
+
 def Viterbi(observations):
     """
     Input
@@ -244,14 +264,14 @@ def Viterbi(observations):
     """
 
     num_time_steps = len(observations)
-    if num_time_steps == 1: return MAPEstimate(observations)
+    if num_time_steps == 1: return MAP_estimate(observations)
 
     forward_messages = [None] * (num_time_steps)
     traceback_messages = [None] * (num_time_steps)
     estimated_hidden_states = [None] * num_time_steps
 
-    reverse_observation_model = compute_reverse_observation_model()
-    forward_messages[0] = prior_distribution
+    log_reverse_observation_model = compute_log_reverse_observation_model()
+    forward_messages[0] = transform_prior_distribution_to_log_messages()
 
     # compute forward- and traceback-messages
     for time_step in range(1, num_time_steps):
@@ -260,50 +280,46 @@ def Viterbi(observations):
         observation = observations[time_step - 1]
 
         for goal_state in all_possible_hidden_states:
-            max_val = -1
-            argmax = None
+            min_val = np.inf
+            argmin = None
 
-            for current_state in reverse_observation_model[observation]:
+            for current_state in log_reverse_observation_model[observation]:
+                fwd = forward_messages[time_step - 1][current_state]
+                if not fwd > 0: continue
+
                 current_val = \
-                    reverse_observation_model[observation][current_state] * \
-                    transition_model(current_state)[goal_state] * \
-                    forward_messages[time_step - 1][current_state]
+                    -log_reverse_observation_model[observation][current_state] - \
+                    careful_log(transition_model(current_state)[goal_state]) + \
+                    fwd
 
-                if current_val > max_val:
-                    max_val = current_val
-                    argmax = current_state
+                if current_val < min_val:
+                    min_val = current_val
+                    argmin = current_state
 
-            if max_val > 0:
-                forward_messages[time_step][goal_state] = max_val
-                traceback_messages[time_step][goal_state] = argmax
-
-
-    # display forward messages
-#     for i in range(0, num_time_steps - 1):
-#         display(forward_messages[i], i)
-#         display(traceback_messages[i], 'tb')
+            if min_val != np.inf:
+                forward_messages[time_step][goal_state] = min_val
+                traceback_messages[time_step][goal_state] = argmin
 
     # compute argmax at the root / end node
-    print('compute last argmax')
+    print('  compute last argmax')
 
+    min_val = -1
+    argmin = None
     observation = observations[num_time_steps - 1]
 
-    max_val = -1
-    argmax = None
-
-    for state in reverse_observation_model[observation]:
+    for state in log_reverse_observation_model[observation]:
         current_val = \
-            reverse_observation_model[observation][state] * \
+            -log_reverse_observation_model[observation][state] + \
             forward_messages[num_time_steps - 1][state]
 
-        if current_val > max_val:
-            max_val = current_val
-            argmax = state
+        if current_val > min_val:
+            min_val = current_val
+            argmin = state
 
-    estimated_hidden_states[num_time_steps - 1] = argmax
+    estimated_hidden_states[num_time_steps - 1] = argmin
 
     # trace back previous argmax-values
-    print('compute traceback')
+    print('  compute traceback')
 
     for time_step in range(num_time_steps - 2, -1, -1):
         estimated_hidden_states[time_step] = \
@@ -314,7 +330,7 @@ def Viterbi(observations):
 
 def test():
     obs = [(1, 0)]
-    assert MAPEstimate(obs) == [(0, 0, 'stay')]
+    assert MAP_estimate(obs) == [(0, 0, 'stay')]
     print('MAP, 1 observation: OK')
 
     obs = [(1, 0)]
@@ -323,14 +339,18 @@ def test():
 
     obs = [(0, 1), (3, 1)]
     assert Viterbi(obs) == [(1, 1, 'stay'), (2, 1, 'right')]
-    print('Two-node case: OK')
+    print('two-node case: ok')
 
-    obs = [(0, 2), (0, 1), (2, 0)]
-    assert Viterbi(obs) == [(0, 1, 'stay'), (1, 1, 'right'), (2, 1, 'right')]
+    obs = [(2, 5), (3, 3), (2, 1)]
+    assert Viterbi(obs) == [(2, 4, 'stay'), (2, 3, 'up'), (2, 2, 'up')]
     print("Three-node case OK")
 
     obs = [(0, 0), (1, 2), (2, 0), (4, 1)]
     assert Viterbi(obs) == [(0, 1, 'stay'), (1, 1, 'right'), (2, 1, 'right'), (3, 1, 'right')]
+    print("Four-node case OK")
+
+    obs = [(0, 0), (1, 2), (2, 0), (4, 1), (5, 1)]
+    assert Viterbi(obs) == [(0, 1, 'stay'), (1, 1, 'right'), (2, 1, 'right'), (3, 1, 'right'), (4, 1, 'right')]
     print("Four-node case OK")
 
 
