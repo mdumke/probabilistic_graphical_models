@@ -250,108 +250,207 @@ def transform_prior_distribution_to_log_messages():
     return new_distribution
 
 
+# def Viterbi(observations):
+#     """
+#     Input
+#     -----
+#     observations: a list of observations, one per hidden state
+#         (a missing observation is encoded as None)
+# 
+#     Output
+#     ------
+#     A list of esimated hidden states, each encoded as a tuple
+#     (<x>, <y>, <action>)
+#     """
+#     num_time_steps = len(observations)
+#     if num_time_steps == 1: return MAP_estimate(observations)
+# 
+#     forward_messages = [None] * (num_time_steps)
+#     traceback_messages = [None] * (num_time_steps)
+#     estimated_hidden_states = [None] * num_time_steps
+# 
+#     reverse_observation_model = compute_reverse_observation_model()
+#     forward_messages[0] = transform_prior_distribution_to_log_messages()
+# 
+#     # compute forward- and traceback-messages
+#     for time_step in range(1, num_time_steps):
+#         forward_messages[time_step] = robot.Distribution()
+#         traceback_messages[time_step] = robot.Distribution()
+#         observation = observations[time_step - 1]
+# 
+#         for goal_state in all_possible_hidden_states:
+#             min_val = np.inf
+#             argmin = None
+# 
+#             if observation:
+#                 for current_state in reverse_observation_model[observation]:
+#                     fwd = forward_messages[time_step - 1][current_state]
+#                     if not fwd > 0: continue
+# 
+#                     current_val = \
+#                         -careful_log(reverse_observation_model[observation][current_state]) - \
+#                         careful_log(transition_model(current_state)[goal_state]) + \
+#                         fwd
+# 
+#                     if current_val < min_val:
+#                         min_val = current_val
+#                         argmin = current_state
+# 
+#             # for missing observations, phi_i is uniform and will play no role
+#             else:
+#                 for current_state in forward_messages[time_step - 1]:
+#                     current_val = \
+#                         -careful_log(transition_model(current_state)[goal_state]) + \
+#                         forward_messages[time_step - 1][current_state]
+# 
+#                     if current_val < min_val:
+#                         min_val = current_val
+#                         argmin = current_state
+# 
+#             if min_val != np.inf:
+#                 forward_messages[time_step][goal_state] = min_val
+#                 traceback_messages[time_step][goal_state] = argmin
+# 
+#     # compute argmax at the root / end node
+#     #print('  compute last argmax')
+# 
+#     min_val = -1
+#     argmin = None
+#     observation = observations[num_time_steps - 1]
+# 
+#     for state in reverse_observation_model[observation]:
+#         current_val = \
+#             -careful_log(reverse_observation_model[observation][state]) + \
+#             forward_messages[num_time_steps - 1][state]
+# 
+#         if current_val > min_val:
+#             min_val = current_val
+#             argmin = state
+# 
+#     estimated_hidden_states[num_time_steps - 1] = argmin
+# 
+#     # trace back previous argmax-values
+#     #print('  compute traceback')
+# 
+#     for time_step in range(num_time_steps - 2, -1, -1):
+#         estimated_hidden_states[time_step] = \
+#             traceback_messages[time_step + 1][estimated_hidden_states[time_step + 1]]
+# 
+#     print(estimated_hidden_states)
+#     return estimated_hidden_states
+
 def Viterbi(observations):
-    """
-    Input
-    -----
-    observations: a list of observations, one per hidden state
-        (a missing observation is encoded as None)
-
-    Output
-    ------
-    A list of esimated hidden states, each encoded as a tuple
-    (<x>, <y>, <action>)
-    """
-
     num_time_steps = len(observations)
-    if num_time_steps == 1: return MAP_estimate(observations)
-
-    forward_messages = [None] * (num_time_steps)
-    traceback_messages = [None] * (num_time_steps)
     estimated_hidden_states = [None] * num_time_steps
 
-    log_reverse_observation_model = compute_log_reverse_observation_model()
-    forward_messages[0] = transform_prior_distribution_to_log_messages()
+    reverse_observation_model = compute_reverse_observation_model()
 
-    # compute forward- and traceback-messages
+    # fold in observations
+    phi = [None] * num_time_steps
+    phi[0] = robot.Distribution()
+
+    for state in reverse_observation_model[observations[0]]:
+        potential = \
+            reverse_observation_model[observations[0]][state] * \
+            prior_distribution[state]
+
+        if potential > 0:
+            phi[0][state] = potential
+
     for time_step in range(1, num_time_steps):
+        phi[time_step] = reverse_observation_model[observations[time_step]]
+
+    # compute forward-messages
+    forward_messages = [None] * (num_time_steps - 1)
+    traceback_messages = [None] * (num_time_steps - 1)
+
+    for time_step in range(num_time_steps - 1):
         forward_messages[time_step] = robot.Distribution()
         traceback_messages[time_step] = robot.Distribution()
-        observation = observations[time_step - 1]
 
         for goal_state in all_possible_hidden_states:
-            min_val = np.inf
-            argmin = None
+            max_val = -np.inf
+            argmax = None
 
-            for current_state in log_reverse_observation_model[observation]:
-                fwd = forward_messages[time_step - 1][current_state]
-                if not fwd > 0: continue
-
+            for current_state in phi[time_step]:
                 current_val = \
-                    -log_reverse_observation_model[observation][current_state] - \
-                    careful_log(transition_model(current_state)[goal_state]) + \
-                    fwd
+                    phi[time_step][current_state] * \
+                    transition_model(current_state)[goal_state]
 
-                if current_val < min_val:
-                    min_val = current_val
-                    argmin = current_state
+                if time_step > 0:
+                    current_val *= forward_messages[time_step - 1][current_state]
 
-            if min_val != np.inf:
-                forward_messages[time_step][goal_state] = min_val
-                traceback_messages[time_step][goal_state] = argmin
+                if current_val > max_val:
+                    max_val = current_val
+                    argmax = current_state
 
-    # compute argmax at the root / end node
-    print('  compute last argmax')
+            forward_messages[time_step][goal_state] = max_val
+            traceback_messages[time_step][goal_state] = argmax
 
-    min_val = -1
-    argmin = None
-    observation = observations[num_time_steps - 1]
+    # compute maximum value at the root
+    max_val = -np.inf
+    argmax = None
 
-    for state in log_reverse_observation_model[observation]:
+    for state in phi[num_time_steps - 1]:
         current_val = \
-            -log_reverse_observation_model[observation][state] + \
-            forward_messages[num_time_steps - 1][state]
+            phi[num_time_steps - 1][state] * \
+            forward_messages[num_time_steps - 2][state]
 
-        if current_val > min_val:
-            min_val = current_val
-            argmin = state
+        if current_val > max_val:
+            max_val = current_val
+            argmax = state
 
-    estimated_hidden_states[num_time_steps - 1] = argmin
+    estimated_hidden_states[num_time_steps - 1] = argmax
 
-    # trace back previous argmax-values
-    print('  compute traceback')
-
+    # follow the traceback
     for time_step in range(num_time_steps - 2, -1, -1):
         estimated_hidden_states[time_step] = \
-            traceback_messages[time_step + 1][estimated_hidden_states[time_step + 1]]
+            traceback_messages[time_step][estimated_hidden_states[time_step + 1]]
 
     return estimated_hidden_states
 
 
+
+
 def test():
-    obs = [(1, 0)]
-    assert MAP_estimate(obs) == [(0, 0, 'stay')]
-    print('MAP, 1 observation: OK')
-
-    obs = [(1, 0)]
-    assert Viterbi(obs) == [(0, 0, 'stay')]
-    print('Single case: OK')
-
-    obs = [(0, 1), (3, 1)]
-    assert Viterbi(obs) == [(1, 1, 'stay'), (2, 1, 'right')]
-    print('two-node case: ok')
-
-    obs = [(2, 5), (3, 3), (2, 1)]
-    assert Viterbi(obs) == [(2, 4, 'stay'), (2, 3, 'up'), (2, 2, 'up')]
-    print("Three-node case OK")
-
-    obs = [(0, 0), (1, 2), (2, 0), (4, 1)]
-    assert Viterbi(obs) == [(0, 1, 'stay'), (1, 1, 'right'), (2, 1, 'right'), (3, 1, 'right')]
-    print("Four-node case OK")
-
-    obs = [(0, 0), (1, 2), (2, 0), (4, 1), (5, 1)]
-    assert Viterbi(obs) == [(0, 1, 'stay'), (1, 1, 'right'), (2, 1, 'right'), (3, 1, 'right'), (4, 1, 'right')]
-    print("Four-node case OK")
+    obs = [(2, 0), (2, 0), (3, 0), (4, 0), (4, 0), (6, 0), (6, 1), (5, 0), (6, 0), (6, 2)]
+    assert Viterbi(obs) == [
+        (1, 0, "stay"), (2, 0, "right"), (3, 0, "right"), (4, 0, "right"),
+        (5, 0, "right"), (6, 0, "right"), (6, 0, "stay"), (6, 0, "stay"),
+        (6, 1, "down"), (6, 2, "down")]
+    print('autograder testcase: OK')
+# 
+#     obs = [(3, 3), (2, 2), (2, 3)]
+#     assert Viterbi(obs) == [(3, 2, 'stay'), (3, 2, 'stay'), (3, 3, 'down')]
+#     print('three-nodes, test 2')
+# 
+#     obs = [(1, 0)]
+#     assert MAP_estimate(obs) == [(0, 0, 'stay')]
+#     print('MAP, 1 observation: OK')
+# 
+#     obs = [(1, 0)]
+#     assert Viterbi(obs) == [(0, 0, 'stay')]
+#     print('Single case: OK')
+# 
+#     obs = [(0, 1), (3, 1)]
+#     assert Viterbi(obs) == [(1, 1, 'stay'), (2, 1, 'right')]
+#     print('two-node case: ok')
+# 
+#     obs = [(2, 5), (3, 3), (2, 1)]
+#     assert Viterbi(obs) == [(2, 4, 'stay'), (2, 3, 'up'), (2, 2, 'up')]
+#     print("Three-node case OK")
+# 
+#     obs = [(0, 1), None, (4, 1)]
+#     assert Viterbi(obs) == [(1, 1, 'stay'), (2, 1, 'right'), (3, 1, 'right')]
+#     print('three-node case with missing observation: ok')
+# 
+#     obs = [(0, 0), (1, 2), (2, 0), (4, 1)]
+#     assert Viterbi(obs) == [(0, 1, 'stay'), (1, 1, 'right'), (2, 1, 'right'), (3, 1, 'right')]
+#     print("Four-node case OK")
+# 
+#     obs = [(0, 0), (1, 2), (2, 0), (4, 1), (5, 1)]
+#     assert Viterbi(obs) == [(0, 1, 'stay'), (1, 1, 'right'), (2, 1, 'right'), (3, 1, 'right'), (4, 1, 'right')]
+#     print("Four-node case OK")
 
 
 def display(dictionary, title=""):
@@ -431,6 +530,9 @@ def generate_data(num_time_steps, make_some_observations_missing=False,
 #
 
 def main():
+    test()
+    exit(1)
+
     # flags
     make_some_observations_missing = False
     use_graphics = True
@@ -455,28 +557,21 @@ def main():
             generate_data(num_time_steps,
                           make_some_observations_missing)
 
-#     print('Running forward-backward...')
-#     marginals = forward_backward(observations)
-#     print("\n")
-# 
-#     timestep = 2
-#     #timestep = 99
-#     print("Most likely parts of marginal at time %d:" % (timestep))
-#     if marginals[timestep] is not None:
-#         print(sorted(marginals[timestep].items(),
-#                      key=lambda x: x[1],
-#                      reverse=True)[:10])
-#     else:
-#         print('*No marginal computed*')
-#     print("\n")
+    print('Running forward-backward...')
+    marginals = forward_backward(observations)
+    print("\n")
 
+    timestep = 2
+    #timestep = 99
+    print("Most likely parts of marginal at time %d:" % (timestep))
+    if marginals[timestep] is not None:
+        print(sorted(marginals[timestep].items(),
+                     key=lambda x: x[1],
+                     reverse=True)[:10])
+    else:
+        print('*No marginal computed*')
+    print("\n")
 
-    test()
-#     obs = [(0, 0), (1, 2), (2, 0), (4, 1)]
-#     print(Viterbi(obs))
-
-
-    exit(0)
 
     print('Running Viterbi...')
     estimated_states = Viterbi(observations)
@@ -489,8 +584,6 @@ def main():
         else:
             print(estimated_states[time_step])
     print("\n")
-
-
 
 
     print('Finding second-best MAP estimate...')
