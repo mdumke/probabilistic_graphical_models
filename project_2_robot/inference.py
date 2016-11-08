@@ -101,17 +101,13 @@ def forward_backward(observations):
     step i
     """
 
-    # -------------------------------------------------------------------------
-    # YOUR CODE GOES HERE
-    #
-
     num_time_steps = len(observations)
     forward_messages = [None] * num_time_steps
     forward_messages[0] = prior_distribution
     reverse_observation_model = compute_reverse_observation_model()
 
     # Compute the forward messages
-    print("  - compute forward messages...")
+    #print("  - compute forward messages...")
 
     # apply for every timestep
     for time_step in range(1, num_time_steps):
@@ -142,7 +138,7 @@ def forward_backward(observations):
     # Compute the backward messages
     # note: order will be reverse! backward_messages[0] will hold the message
     #       coming in to the *last* hidden state
-    print("  - compute backward messages")
+    #print("  - compute backward messages")
 
     backward_messages = [None] * num_time_steps
     backward_messages[0] = generate_uniform_message()
@@ -175,7 +171,7 @@ def forward_backward(observations):
                 backward_messages[time_step][goal_state] = probability_sum
 
     # Compute the marginals
-    print("  - compute marginals")
+    #print("  - compute marginals")
 
     marginals = [None] * num_time_steps # remove this
 
@@ -216,15 +212,182 @@ def Viterbi(observations):
     (<x>, <y>, <action>)
     """
 
-    # -------------------------------------------------------------------------
-    # YOUR CODE GOES HERE
-    #
-
-
     num_time_steps = len(observations)
-    estimated_hidden_states = [None] * num_time_steps # remove this
+    forward_messages = [None] * (num_time_steps - 1)
+    traceback_messages = [None] * (num_time_steps - 1)
+    estimated_hidden_states = [None] * num_time_steps
+
+    reverse_observation_model = compute_reverse_observation_model()
+
+    print('observations:', observations)
+
+    # pre-compute first singleton probabilities
+    phi1 = robot.Distribution()
+    observation = observations[0]
+
+    for state in reverse_observation_model[observation]:
+        potential = \
+            reverse_observation_model[observation][state] * \
+            prior_distribution[state]
+
+        if potential > 0:
+            phi1[state] = potential
+
+    display(phi1, 'Phi 1')
+
+    # compute forward- and traceback-messages
+
+    # time step 0
+    time_step = 0
+    forward_messages[time_step] = robot.Distribution()
+    traceback_messages[time_step] = robot.Distribution()
+
+    for goal_state in all_possible_hidden_states:
+        max_val = -1
+        argmax = None
+
+        for current_state in phi1:
+            current_val = \
+                transition_model(current_state)[goal_state] * \
+                phi1[current_state]
+
+            if current_val > max_val:
+                max_val = current_val
+                argmax = current_state
+
+        if max_val > 0:
+            forward_messages[time_step][goal_state] = max_val
+            traceback_messages[time_step][goal_state] = argmax
+
+    # time step 1
+    time_step = 1
+    forward_messages[time_step] = robot.Distribution()
+    traceback_messages[time_step] = robot.Distribution()
+    observation = observations[time_step]
+
+    for goal_state in all_possible_hidden_states:
+        max_val = -1
+        argmax = None
+
+        for current_state in reverse_observation_model[observation]:
+            current_val = \
+                reverse_observation_model[observation][current_state] * \
+                transition_model(current_state)[goal_state] * \
+                forward_messages[time_step - 1][current_state]
+
+            if current_val > max_val:
+                max_val = current_val
+                argmax = current_state
+
+        if max_val > 0:
+            forward_messages[time_step][goal_state] = max_val
+            traceback_messages[time_step][goal_state] = argmax
+
+    # time step 2 and above
+    time_step = 2
+    forward_messages[time_step] = robot.Distribution()
+    traceback_messages[time_step] = robot.Distribution()
+    observation = observations[time_step]
+
+    for goal_state in all_possible_hidden_states:
+        max_val = -1
+        argmax = None
+
+        for current_state in reverse_observation_model[observation]:
+            current_val = \
+                reverse_observation_model[observation][current_state] * \
+                transition_model(current_state)[goal_state] * \
+                forward_messages[time_step - 1][current_state]
+
+            if current_val > max_val:
+                max_val = current_val
+                argmax = current_state
+
+        if max_val > 0:
+            forward_messages[time_step][goal_state] = max_val
+            traceback_messages[time_step][goal_state] = argmax
+
+    # display forward messages
+    for i in range(0, num_time_steps - 1):
+        display(forward_messages[i], i)
+        display(traceback_messages[i], 'tb')
+
+    # compute argmax at the root / end node
+    print('compute last argmax')
+
+    observation = observations[num_time_steps - 1]
+
+    max_val = -1
+    argmax = None
+
+    for state in reverse_observation_model[observation]:
+        current_val = \
+            reverse_observation_model[observation][state] * \
+            forward_messages[num_time_steps - 2][state]
+
+        if current_val > max_val:
+            max_val = current_val
+            argmax = state
+
+    estimated_hidden_states[num_time_steps - 1] = argmax
+
+    # trace back previous argmax-values
+    print('compute traceback')
+
+    for time_step in range(num_time_steps - 2, -1, -1):
+        estimated_hidden_states[time_step] = \
+            traceback_messages[time_step][estimated_hidden_states[time_step + 1]]
+
+#     observation = observations[0]
+# 
+#     max_val = -1
+#     argmax = None
+# 
+#     # find the state that maximizes the a posteriori distribution
+#     for state in reverse_observation_model[observation]:
+#         current_val = \
+#             reverse_observation_model[observation][state] * \
+#             prior_distribution[state]
+# 
+#         if current_val > max_val:
+#             max_val = current_val
+#             argmax = state
+# 
+#     estimated_hidden_states[0] = argmax
+
+
 
     return estimated_hidden_states
+
+
+
+
+
+
+
+
+def test():
+#     obs = [(1, 0)]
+#     assert Viterbi(obs) == [(0, 0, 'stay')]
+#     print('Single case: OK')
+# 
+#     obs = [(0, 1), (3, 1)]
+#     assert Viterbi(obs) == [(1, 1, 'stay'), (2, 1, 'right')]
+#     print('Two-node case: OK')
+# 
+    obs = [(0, 2), (0, 1), (0, 2)]
+    assert Viterbi(obs) == [(0, 1, 'stay'), (1, 1, 'right'), (2, 1, 'right')]
+    print("Three-node case OK")
+
+    obs = [(0, 0), (1, 2), (2, 0), (4, 1)]
+    assert Viterbi(obs) == [(0, 1, 'stay'), (1, 1, 'right'), (2, 1, 'right'), (3, 1, 'right')]
+    print("Four-node case OK")
+
+def display(dictionary, title=""):
+    print("\n", title, ":")
+
+    for key in dictionary:
+        print(' ', key, ":", dictionary[key])
 
 
 def second_best(observations):
@@ -321,26 +484,28 @@ def main():
             generate_data(num_time_steps,
                           make_some_observations_missing)
 
-    print('Running forward-backward...')
-    marginals = forward_backward(observations)
-    print("\n")
-
-    #timestep = 2
-    timestep = 99
-    print("Most likely parts of marginal at time %d:" % (timestep))
-    if marginals[timestep] is not None:
-        print(sorted(marginals[timestep].items(),
-                     key=lambda x: x[1],
-                     reverse=True)[:10])
-    else:
-        print('*No marginal computed*')
-    print("\n")
-
-
-
-    exit(1)
+#     print('Running forward-backward...')
+#     marginals = forward_backward(observations)
+#     print("\n")
+# 
+#     timestep = 2
+#     #timestep = 99
+#     print("Most likely parts of marginal at time %d:" % (timestep))
+#     if marginals[timestep] is not None:
+#         print(sorted(marginals[timestep].items(),
+#                      key=lambda x: x[1],
+#                      reverse=True)[:10])
+#     else:
+#         print('*No marginal computed*')
+#     print("\n")
 
 
+    test()
+#     obs = [(0, 0), (1, 2), (2, 0), (4, 1)]
+#     print(Viterbi(obs))
+
+
+    exit(0)
 
     print('Running Viterbi...')
     estimated_states = Viterbi(observations)
@@ -353,6 +518,9 @@ def main():
         else:
             print(estimated_states[time_step])
     print("\n")
+
+
+
 
     print('Finding second-best MAP estimate...')
     estimated_states2 = second_best(observations)
