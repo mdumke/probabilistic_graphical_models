@@ -467,46 +467,46 @@ def second_best(observations):
             backward_messages[time_step][goal_state] = min_val
             backward_traceback_messages[time_step][goal_state] = argmin
 
+    # compute the optimum at a randomly chosen node
+    rand_node = np.random.randint(num_time_steps)
+    print('random root:', rand_node)
 
-    # compute minimum value at first node
     min_val = np.inf
     argmin = None
 
-    for state in phi[0]:
-        current_val = phi[0][state] + backward_messages[0][state]
+    for state in phi[rand_node]:
+        if rand_node == 0:
+            current_val = \
+                phi[0][state] + \
+                backward_messages[0][state]
+
+        elif rand_node == num_time_steps - 1:
+            current_val = \
+                phi[num_time_steps - 1][state] + \
+                forward_messages[num_time_steps - 2][state]
+
+        else:
+            current_val = \
+                phi[rand_node][state] + \
+                forward_messages[rand_node - 1][state] + \
+                backward_messages[rand_node][state]
 
         if current_val < min_val:
             min_val = current_val
             argmin = state
 
-    estimated_hidden_states[0] = argmin
+    estimated_hidden_states[rand_node] = argmin
 
-    # follow the traceback
-    for time_step in range(1, num_time_steps):
-        estimated_hidden_states[time_step] = \
-            backward_traceback_messages[time_step - 1][estimated_hidden_states[time_step - 1]]
+    # follow the traceback left and right
+    if rand_node > 0:
+        for time_step in range(rand_node - 1, -1, -1):
+            estimated_hidden_states[time_step] = \
+                traceback_messages[time_step][estimated_hidden_states[time_step + 1]]
 
-
-
-#     # compute maximum value at the root
-#     min_val = np.inf
-#     argmin = None
-# 
-#     for state in phi[num_time_steps - 1]:
-#         current_val = \
-#             phi[num_time_steps - 1][state] + \
-#             forward_messages[num_time_steps - 2][state]
-# 
-#         if current_val < min_val:
-#             min_val = current_val
-#             argmin = state
-# 
-#     estimated_hidden_states[num_time_steps - 1] = argmin
-# 
-#     # follow the traceback
-#     for time_step in range(num_time_steps - 2, -1, -1):
-#         estimated_hidden_states[time_step] = \
-#             traceback_messages[time_step][estimated_hidden_states[time_step + 1]]
+    if rand_node < num_time_steps - 1:
+        for time_step in range(rand_node + 1, num_time_steps):
+            estimated_hidden_states[time_step] = \
+                backward_traceback_messages[time_step - 1][estimated_hidden_states[time_step - 1]]
 
     print('***', estimated_hidden_states)
     return estimated_hidden_states
