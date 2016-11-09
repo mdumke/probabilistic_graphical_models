@@ -389,30 +389,10 @@ def display(dictionary, title=""):
     for key in dictionary:
         print(' ', key, ":", dictionary[key])
 
-
-def second_best(observations):
-    """
-    Input
-    -----
-    observations: a list of observations, one per hidden state
-        (a missing observation is encoded as None)
-
-    Output
-    ------
-    A list of esimated hidden states, each encoded as a tuple
-    (<x>, <y>, <action>)
-    """
+# returns n-1 forward and traceback messages under logarithmic transformation
+def compute_min_forward_messages(phi, observations):
     num_time_steps = len(observations)
-    if num_time_steps == 1: return MAP_estimate(observations)
 
-    reverse_transition_model = compute_reverse_transition_model()
-    estimated_hidden_states = [None] * num_time_steps
-
-    # fold in observations
-    phi = precompute_singleton_potentials(observations)
-
-    # compute forward-messages
-    print('compute forward messages')
     forward_messages = [None] * (num_time_steps - 1)
     traceback_messages = [None] * (num_time_steps - 1)
 
@@ -439,8 +419,14 @@ def second_best(observations):
             forward_messages[time_step][goal_state] = min_val
             traceback_messages[time_step][goal_state] = argmin
 
-    # compute backward-messages
-    print('compute backward messages')
+    return forward_messages, traceback_messages
+
+
+# returns n-1 backward and traceback messages under log-transform
+def compute_min_backward_messages(phi, observations):
+    num_time_steps = len(observations)
+    reverse_transition_model = compute_reverse_transition_model()
+
     backward_messages = [None] * (num_time_steps - 1)
     backward_traceback_messages = [None] * (num_time_steps - 1)
 
@@ -467,81 +453,128 @@ def second_best(observations):
             backward_messages[time_step][goal_state] = min_val
             backward_traceback_messages[time_step][goal_state] = argmin
 
-    # compute the optimum at a randomly chosen node
-    rand_node = np.random.randint(num_time_steps)
-    print('random root:', rand_node)
+    return backward_messages, backward_traceback_messages
+
+
+# returns the value and argument that yield the second best result for the node
+def find_second_best_argument(node_id, phi, forward_messages, backward_messages):
+    num_time_steps = len(forward_messages) + 1
 
     min_val = np.inf
+    second_best_val = np.inf
     argmin = None
+    second_best_arg = None
 
-    for state in phi[rand_node]:
-        if rand_node == 0:
+    for state in phi[node_id]:
+        if node_id == 0:
             current_val = \
                 phi[0][state] + \
                 backward_messages[0][state]
 
-        elif rand_node == num_time_steps - 1:
+        elif node_id == num_time_steps - 1:
             current_val = \
                 phi[num_time_steps - 1][state] + \
                 forward_messages[num_time_steps - 2][state]
 
         else:
             current_val = \
-                phi[rand_node][state] + \
-                forward_messages[rand_node - 1][state] + \
-                backward_messages[rand_node][state]
+                phi[node_id][state] + \
+                forward_messages[node_id - 1][state] + \
+                backward_messages[node_id][state]
 
         if current_val < min_val:
+            second_best_val = min_val
+            second_best_arg = argmin
             min_val = current_val
             argmin = state
 
-    estimated_hidden_states[rand_node] = argmin
+        elif current_val < second_best_val:
+            second_best_val = current_val
+            second_best_arg = state
+
+    return second_best_arg, second_best_val
+
+
+def second_best(observations):
+    """
+    Input
+    -----
+    observations: a list of observations, one per hidden state
+        (a missing observation is encoded as None)
+
+    Output
+    ------
+    A list of esimated hidden states, each encoded as a tuple
+    (<x>, <y>, <action>)
+    """
+    num_time_steps = len(observations)
+    if num_time_steps == 1: return MAP_estimate(observations)
+
+    estimated_hidden_states = [None] * num_time_steps
+
+    # fold in observations
+    phi = precompute_singleton_potentials(observations)
+
+    # compute forward-messages
+    forward_messages, traceback_messages = \
+        compute_min_forward_messages(phi, observations)
+
+    # compute backward-messages
+    backward_messages, backward_traceback_messages = \
+        compute_min_backward_messages(phi, observations)
+
+    # find the maximum path using second-best option at one node
+    min_val = np.inf
+    min_node = None
+    min_state = None
+
+    for node_id in range(num_time_steps):
+        current_state, current_val = \
+            find_second_best_argument(node_id, phi, forward_messages, backward_messages)
+
+        if current_val < min_val:
+            min_val = current_val
+            min_state = current_state
+            min_node = node_id
+
+    node_id = min_node
+    estimated_hidden_states[node_id] = min_state
 
     # follow the traceback left and right
-    if rand_node > 0:
-        for time_step in range(rand_node - 1, -1, -1):
+    if node_id > 0:
+        for time_step in range(node_id - 1, -1, -1):
             estimated_hidden_states[time_step] = \
                 traceback_messages[time_step][estimated_hidden_states[time_step + 1]]
 
-    if rand_node < num_time_steps - 1:
-        for time_step in range(rand_node + 1, num_time_steps):
+    if node_id < num_time_steps - 1:
+        for time_step in range(node_id + 1, num_time_steps):
             estimated_hidden_states[time_step] = \
                 backward_traceback_messages[time_step - 1][estimated_hidden_states[time_step - 1]]
 
-    print('***', estimated_hidden_states)
     return estimated_hidden_states
 
 
-
-
-
 def test2():
-    obs = [(2, 0), (2, 0), (3, 0), (4, 0), (4, 0), (6, 0), (6, 1), (5, 0), (6, 0), (6, 2)]
-    assert second_best(obs) == [
-        (1, 0, "stay"), (2, 0, "right"), (3, 0, "right"), (4, 0, "right"),
-        (5, 0, "right"), (6, 0, "right"), (6, 0, "stay"), (6, 0, "stay"),
-        (6, 1, "down"), (6, 2, "down")]
-    print('autograder testcase: OK')
+    obs = [(8, 2), (8, 1), (10, 0), (10, 0), (10, 1),
+           (11, 0), (11, 0), (11, 1), (11, 2), (11, 2)]
+    assert second_best(obs) == \
+        [(9, 2, "stay"), (9, 1, "up"), (9, 0, "up"),
+         (9, 0, "stay"), (10, 0, "right"), (11, 0, "right"),
+         (11, 0, "stay"), (11, 0, "stay"), (11, 1, "down"),
+         (11, 2, "down")]
+    print('grader case 1: OK')
 
-#     obs = [(8, 2), (8, 1), (10, 0), (10, 0), (10, 1),
-#            (11, 0), (11, 0), (11, 1), (11, 2), (11, 2)]
-#     assert second_best(obs) == \
-#         [[9, 2, "stay"], [9, 1, "up"], [9, 0, "up"],
-#          [9, 0, "stay"], [10, 0, "right"], [11, 0, "right"],
-#          [11, 0, "stay"], [11, 0, "stay"], [11, 1, "down"],
-#          [11, 2, "down"]]
-#     print('grader case 1: OK')
-# 
-#     obs = [(1, 4), (1, 5), (1, 5), (1, 6), (0, 7),
-#            (1, 7), (3, 7), (4, 7), (4, 7), (4, 7)]
-#     assert second_best(obs) == \
-#         [[1, 4, "stay"], [1, 5, "down"], [1, 6, "down"],
-#          [1, 7, "down"], [1, 7, "stay"], [1, 7, "stay"],
-#          [2, 7, "right"], [3, 7, "right"], [4, 7, "right"],
-#          [5, 7, "right"]]
-#     print('grader case 2: OK')
+    obs = [(1, 4), (1, 5), (1, 5), (1, 6), (0, 7),
+           (1, 7), (3, 7), (4, 7), (4, 7), (4, 7)]
+    expectation = \
+        [(1, 4, "stay"), (1, 5, "down"), (1, 6, "down"),
+         (1, 7, "down"), (1, 7, "stay"), (1, 7, "stay"),
+         (2, 7, "right"), (3, 7, "right"), (4, 7, "right"),
+         (5, 7, "right")]
 
-
+    result = second_best(obs)
+    assert result == expectation
+    print('grader case 2: OK')
 
 
 # -----------------------------------------------------------------------------
@@ -590,8 +623,8 @@ def generate_data(num_time_steps, make_some_observations_missing=False,
 #
 
 def main():
-    test2()
-    exit(1)
+#     test2()
+#     exit(1)
 
     # flags
     make_some_observations_missing = False
