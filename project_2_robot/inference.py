@@ -402,16 +402,146 @@ def second_best(observations):
     A list of esimated hidden states, each encoded as a tuple
     (<x>, <y>, <action>)
     """
-
-    # -------------------------------------------------------------------------
-    # YOUR CODE GOES HERE
-    #
-
-
     num_time_steps = len(observations)
-    estimated_hidden_states = [None] * num_time_steps # remove this
+    if num_time_steps == 1: return MAP_estimate(observations)
 
+    reverse_transition_model = compute_reverse_transition_model()
+    estimated_hidden_states = [None] * num_time_steps
+
+    # fold in observations
+    phi = precompute_singleton_potentials(observations)
+
+    # compute forward-messages
+    print('compute forward messages')
+    forward_messages = [None] * (num_time_steps - 1)
+    traceback_messages = [None] * (num_time_steps - 1)
+
+    for time_step in range(num_time_steps - 1):
+        forward_messages[time_step] = robot.Distribution()
+        traceback_messages[time_step] = robot.Distribution()
+
+        for goal_state in all_possible_hidden_states:
+            min_val = np.inf
+            argmin = None
+
+            for current_state in phi[time_step]:
+                current_val = \
+                    phi[time_step][current_state] + \
+                    -careful_log(transition_model(current_state)[goal_state])
+
+                if time_step > 0:
+                    current_val += forward_messages[time_step - 1][current_state]
+
+                if current_val < min_val:
+                    min_val = current_val
+                    argmin = current_state
+
+            forward_messages[time_step][goal_state] = min_val
+            traceback_messages[time_step][goal_state] = argmin
+
+    # compute backward-messages
+    print('compute backward messages')
+    backward_messages = [None] * (num_time_steps - 1)
+    backward_traceback_messages = [None] * (num_time_steps - 1)
+
+    for time_step in range(num_time_steps - 2, -1, -1):
+        backward_messages[time_step] = robot.Distribution()
+        backward_traceback_messages[time_step] = robot.Distribution()
+
+        for goal_state in all_possible_hidden_states:
+            min_val = np.inf
+            argmin = None
+
+            for current_state in phi[time_step + 1]:
+                current_val = \
+                    phi[time_step + 1][current_state] + \
+                    -careful_log(reverse_transition_model[current_state][goal_state])
+
+                if time_step < num_time_steps - 2:
+                    current_val += backward_messages[time_step + 1][current_state]
+
+                if current_val < min_val:
+                    min_val = current_val
+                    argmin = current_state
+
+            backward_messages[time_step][goal_state] = min_val
+            backward_traceback_messages[time_step][goal_state] = argmin
+
+
+    # compute minimum value at first node
+    min_val = np.inf
+    argmin = None
+
+    for state in phi[0]:
+        current_val = phi[0][state] + backward_messages[0][state]
+
+        if current_val < min_val:
+            min_val = current_val
+            argmin = state
+
+    estimated_hidden_states[0] = argmin
+
+    # follow the traceback
+    for time_step in range(1, num_time_steps):
+        estimated_hidden_states[time_step] = \
+            backward_traceback_messages[time_step - 1][estimated_hidden_states[time_step - 1]]
+
+
+
+#     # compute maximum value at the root
+#     min_val = np.inf
+#     argmin = None
+# 
+#     for state in phi[num_time_steps - 1]:
+#         current_val = \
+#             phi[num_time_steps - 1][state] + \
+#             forward_messages[num_time_steps - 2][state]
+# 
+#         if current_val < min_val:
+#             min_val = current_val
+#             argmin = state
+# 
+#     estimated_hidden_states[num_time_steps - 1] = argmin
+# 
+#     # follow the traceback
+#     for time_step in range(num_time_steps - 2, -1, -1):
+#         estimated_hidden_states[time_step] = \
+#             traceback_messages[time_step][estimated_hidden_states[time_step + 1]]
+
+    print('***', estimated_hidden_states)
     return estimated_hidden_states
+
+
+
+
+
+def test2():
+    obs = [(2, 0), (2, 0), (3, 0), (4, 0), (4, 0), (6, 0), (6, 1), (5, 0), (6, 0), (6, 2)]
+    assert second_best(obs) == [
+        (1, 0, "stay"), (2, 0, "right"), (3, 0, "right"), (4, 0, "right"),
+        (5, 0, "right"), (6, 0, "right"), (6, 0, "stay"), (6, 0, "stay"),
+        (6, 1, "down"), (6, 2, "down")]
+    print('autograder testcase: OK')
+
+#     obs = [(8, 2), (8, 1), (10, 0), (10, 0), (10, 1),
+#            (11, 0), (11, 0), (11, 1), (11, 2), (11, 2)]
+#     assert second_best(obs) == \
+#         [[9, 2, "stay"], [9, 1, "up"], [9, 0, "up"],
+#          [9, 0, "stay"], [10, 0, "right"], [11, 0, "right"],
+#          [11, 0, "stay"], [11, 0, "stay"], [11, 1, "down"],
+#          [11, 2, "down"]]
+#     print('grader case 1: OK')
+# 
+#     obs = [(1, 4), (1, 5), (1, 5), (1, 6), (0, 7),
+#            (1, 7), (3, 7), (4, 7), (4, 7), (4, 7)]
+#     assert second_best(obs) == \
+#         [[1, 4, "stay"], [1, 5, "down"], [1, 6, "down"],
+#          [1, 7, "down"], [1, 7, "stay"], [1, 7, "stay"],
+#          [2, 7, "right"], [3, 7, "right"], [4, 7, "right"],
+#          [5, 7, "right"]]
+#     print('grader case 2: OK')
+
+
 
 
 # -----------------------------------------------------------------------------
@@ -460,8 +590,8 @@ def generate_data(num_time_steps, make_some_observations_missing=False,
 #
 
 def main():
-#     test()
-#     exit(1)
+    test2()
+    exit(1)
 
     # flags
     make_some_observations_missing = False
