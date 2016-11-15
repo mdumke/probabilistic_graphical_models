@@ -1,6 +1,7 @@
 import sys
 import os.path
 import numpy as np
+from collections import Counter
 
 import util
 
@@ -12,7 +13,7 @@ def get_counts(file_list):
 
     Inputs
     ------
-    file_list : a list of filenames, suitable for use with open() or 
+    file_list : a list of filenames, suitable for use with open() or
                 util.get_words_in_file()
 
     Output
@@ -20,17 +21,26 @@ def get_counts(file_list):
     A dict whose keys are words, and whose values are the number of files the
     key occurred in.
     """
-    ### TODO: Comment out the following line and write your code here
-    raise NotImplementedError
+    counter = Counter()
+
+    for filename in file_list:
+        # make sure multiple occurances of a word per email are ignored
+        word_set = set(util.get_words_in_file(filename))
+
+        for word in word_set:
+            counter[word] += 1
+
+    return counter
+
 
 def get_log_probabilities(file_list):
     """
-    Computes log-frequencies for each word that occurs in the files in 
+    Computes log-frequencies for each word that occurs in the files in
     file_list.
 
     Input
     -----
-    file_list : a list of filenames, suitable for use with open() or 
+    file_list : a list of filenames, suitable for use with open() or
                 util.get_words_in_file()
 
     Output
@@ -43,15 +53,40 @@ def get_log_probabilities(file_list):
     The data structure util.DefaultDict will be useful to you here, as will the
     get_counts() helper above.
     """
-    ### TODO: Comment out the following line and write your code here
-    raise NotImplementedError
+    n = len(file_list)
+    relative_counts = Counter()
+
+    for word, count in get_counts(file_list).items():
+        relative_counts[word] = np.log((count + 1) / (n + 2))
+
+    return relative_counts
+
+
+def get_log_prior(file_lists_by_category):
+    """
+    Input
+    -----
+    A two-element list. The first element is a list of spam files,
+    and the second element is a list of ham (non-spam) files.
+
+    Output
+    ------
+    log_prior_by_category : A list of estimates for the log-probabilities for
+                            each class:
+                            [est. for log P(c=spam), est. for log P(c=ham)]
+    """
+    num_spam = len(file_lists_by_category[0])
+    num_ham = len(file_lists_by_category[1])
+    total = num_spam + num_ham
+
+    return np.log(num_spam / total), np.log(num_ham / total)
 
 
 def learn_distributions(file_lists_by_category):
     """
     Input
     -----
-    A two-element list. The first element is a list of spam files, 
+    A two-element list. The first element is a list of spam files,
     and the second element is a list of ham (non-spam) files.
 
     Output
@@ -67,8 +102,15 @@ def learn_distributions(file_lists_by_category):
                             each class:
                             [est. for log P(c=spam), est. for log P(c=ham)]
     """
-    ### TODO: Comment out the following line and write your code here
-    raise NotImplementedError
+    log_probabilities_by_category = [
+        get_log_probabilities(file_lists_by_category[0]),
+        get_log_probabilities(file_lists_by_category[1])]
+
+
+    log_prior = get_log_prior(file_lists_by_category)
+
+    return (log_probabilities_by_category, log_prior)
+
 
 def classify_email(email_filename,
                    log_probabilities_by_category,
@@ -91,6 +133,7 @@ def classify_email(email_filename,
     ### TODO: Comment out the following line and write your code here
     return 'spam'
 
+
 def classify_emails(spam_files, ham_files, test_files):
     # DO NOT MODIFY -- used by the autograder
     log_probabilities_by_category, log_prior = \
@@ -103,9 +146,26 @@ def classify_emails(spam_files, ham_files, test_files):
     return estimated_labels
 
 def main():
+
+# 
+# spam_folder = 'data/spam'
+# ham_folder = 'data/ham'
+# 
+# file_lists_by_category = [
+#     util.get_files_in_folder(spam_folder),
+#     util.get_files_in_folder(ham_folder)]
+# 
+# l = learn_distributions(file_lists_by_category)
+# 
+# 
+#     exit(1)
+
+
+
+
     ### Read arguments
     if len(sys.argv) != 4:
-        print USAGE % sys.argv[0]
+        print(USAGE % sys.argv[0])
     testing_folder = sys.argv[1]
     (spam_folder, ham_folder) = sys.argv[2:4]
 
