@@ -2,6 +2,7 @@ import sys
 import os.path
 import numpy as np
 from collections import Counter
+from collections import defaultdict
 
 import util
 
@@ -53,11 +54,14 @@ def get_log_probabilities(file_list):
     The data structure util.DefaultDict will be useful to you here, as will the
     get_counts() helper above.
     """
+    # set laplace smoothing constant
+    l = 1
+
     n = len(file_list)
-    relative_counts = Counter()
+    relative_counts = defaultdict(lambda: np.log(l / (n + 2 * l)))
 
     for word, count in get_counts(file_list).items():
-        relative_counts[word] = np.log((count + 1) / (n + 2))
+        relative_counts[word] = np.log((count + l) / (n + 2 * l))
 
     return relative_counts
 
@@ -106,7 +110,6 @@ def learn_distributions(file_lists_by_category):
         get_log_probabilities(file_lists_by_category[0]),
         get_log_probabilities(file_lists_by_category[1])]
 
-
     log_prior = get_log_prior(file_lists_by_category)
 
     return (log_probabilities_by_category, log_prior)
@@ -130,8 +133,24 @@ def classify_email(email_filename,
     ------
     One of the labels in names.
     """
-    ### TODO: Comment out the following line and write your code here
-    return 'spam'
+    q, p = log_probabilities_by_category
+    log_p_spam, log_p_ham = log_prior_by_category
+
+    email_words = set(util.get_words_in_file(email_filename))
+    all_words = set(list(q.keys()) + list(p.keys()))
+
+    for word in all_words:
+        if word in email_words:
+            log_p_spam += q[word]
+            log_p_ham += p[word]
+        else:
+            log_p_spam += np.log(1 - np.exp(q[word]))
+            log_p_ham += np.log(1 - np.exp(p[word]))
+
+    if log_p_spam > log_p_ham:
+        return "spam"
+    else:
+        return "ham"
 
 
 def classify_emails(spam_files, ham_files, test_files):
@@ -145,29 +164,16 @@ def classify_emails(spam_files, ham_files, test_files):
         estimated_labels.append(estimated_label)
     return estimated_labels
 
+
 def main():
-
-# 
-# spam_folder = 'data/spam'
-# ham_folder = 'data/ham'
-# 
-# file_lists_by_category = [
-#     util.get_files_in_folder(spam_folder),
-#     util.get_files_in_folder(ham_folder)]
-# 
-# l = learn_distributions(file_lists_by_category)
-# 
-# 
-#     exit(1)
-
-
-
-
     ### Read arguments
     if len(sys.argv) != 4:
         print(USAGE % sys.argv[0])
     testing_folder = sys.argv[1]
     (spam_folder, ham_folder) = sys.argv[2:4]
+
+    testing_folder = "data/testing"
+    (spam_folder, ham_folder) = ["data/spam", "data/ham"]
 
     ### Learn the distributions
     file_lists = []
