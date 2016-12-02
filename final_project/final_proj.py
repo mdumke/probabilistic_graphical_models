@@ -162,7 +162,7 @@ def compute_empirical_mutual_info_nats(var1_values, var2_values):
                 joint_entropy += p * np.log(1 / p)
                 independent_entropy += p * np.log(1 / q)
 
-    return joint_entropy - independent_entropy
+    return abs(joint_entropy - independent_entropy)
 
 
 def rank_edges_by_empirical_mutual_information (observations):
@@ -186,8 +186,8 @@ def rank_edges_by_empirical_mutual_information (observations):
             info = compute_empirical_mutual_info_nats(observations[:, i], observations[:, j])
             edges.append((i, j, info))
 
-    # sort result by ascending mutual information
-    edges = sorted(edges, key = lambda tup: tup[2])
+    # sort result by descending (positive) mutual information
+    edges = sorted(edges, key = lambda tup: -tup[2])
 
     # remove unneccesary mutual information
     edges = [(i, j) for i, j, info in edges]
@@ -254,13 +254,16 @@ def compute_empirical_conditional_distribution(var1_values, var2_values):
     """
     conditional_distributions = {x2: {} for x2 in set(var2_values)}
 
-    # -------------------------------------------------------------------------
-    # YOUR CODE HERE
-    #
+    # select all x1 values where x2 takes on the conditioning value
+    for conditioning_value in set(var2_values):
+        var1_subset = np.array([])
 
-    #
-    # END OF YOUR CODE
-    # -------------------------------------------------------------------------
+        for i in range(len(var2_values)):
+            if var2_values[i] == conditioning_value:
+                var1_subset = np.append(var1_subset, var1_values[i])
+
+        conditional_distributions[conditioning_value] = \
+            compute_empirical_distribution(var1_subset.astype(int))
 
     return conditional_distributions
 
@@ -341,13 +344,45 @@ def learn_tree_parameters(observations, tree, root_node=0):
                         dicts_within_dict_table[x2][x1]
         return transposed_table
 
-    # -------------------------------------------------------------------------
-    # YOUR CODE HERE
-    #
 
-    #
-    # END OF YOUR CODE
-    # -------------------------------------------------------------------------
+    # find marginal for the root
+    node_potentials[root_node] = \
+        compute_empirical_distribution(observations[:, root_node])
+
+    # set remaining node-potentials to 1
+    for node in nodes:
+        if node != root_node:
+            node_potentials[node] = {-1: 1, 0: 1, 1: 1}
+
+    # traverse the tree
+    fringe = [root_node]
+    visited = {node: False for node in nodes}
+
+    while len(fringe) > 0:
+        node = fringe.pop(0)
+        visited[node] = True
+
+        # traverse neighbors and add edge-potentials in both directions
+        for neighbor in edges[node]:
+            if not visited[neighbor]:
+                edge_potentials[(neighbor, node)] = \
+                    compute_empirical_conditional_distribution(
+                        observations[:, node],
+                        observations[:, neighbor])
+
+                # use transpose 2-d table for one of those ....
+
+                edge_potentials[(node, neighbor)] = \
+                    compute_empirical_conditional_distribution(
+                        observations[:, neighbor],
+                        observations[:, node])
+
+                fringe.append(neighbor)
+
+
+#     print(edges)
+#     print(nodes)
+
 
     return node_potentials, edge_potentials
 
@@ -529,15 +564,15 @@ def main():
     best_tree = chow_liu(observations)
     print(best_tree)
 
-    return
-
-
-
-
     node_potentials, edge_potentials = learn_tree_parameters(observations,
                                                              best_tree)
     print(node_potentials)
     print(edge_potentials)
+
+
+#     return
+
+
 
     marginals = compute_marginals_given_observations(
         {0, 1, 2, 3},
