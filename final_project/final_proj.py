@@ -365,24 +365,18 @@ def learn_tree_parameters(observations, tree, root_node=0):
         # traverse neighbors and add edge-potentials in both directions
         for neighbor in edges[node]:
             if not visited[neighbor]:
-                edge_potentials[(neighbor, node)] = \
-                    compute_empirical_conditional_distribution(
-                        observations[:, node],
-                        observations[:, neighbor])
-
-                # use transpose 2-d table for one of those ....
-
-                edge_potentials[(node, neighbor)] = \
+                cond_distribution = \
                     compute_empirical_conditional_distribution(
                         observations[:, neighbor],
                         observations[:, node])
 
+                edge_potentials[(node, neighbor)] = \
+                        cond_distribution
+
+                edge_potentials[(neighbor, node)] = \
+                        transpose_2d_table(cond_distribution)
+
                 fringe.append(neighbor)
-
-
-#     print(edges)
-#     print(nodes)
-
 
     return node_potentials, edge_potentials
 
