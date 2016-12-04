@@ -465,19 +465,18 @@ def sum_product(nodes, edges, node_potentials, edge_potentials):
     # compute messages from root to leafes
     fringe = [root_node]
     visited = {node: False for node in nodes}
-    parent = None
 
     while len(fringe) > 0:
         current_node = fringe.pop()
         visited[current_node] = True
 
-        for neighbor in edges[current_node]:
-            if not visited[neighbor]:
+        for child in edges[current_node]:
+            if not visited[child]:
                 # add downwards message
                 message = {}
 
                 x_i_alphabet = list(node_potentials[current_node].keys())
-                x_j_alphabet = list(node_potentials[neighbor].keys())
+                x_j_alphabet = list(node_potentials[child].keys())
 
                 for x_j in x_j_alphabet:
                     message[x_j] = 0
@@ -486,18 +485,17 @@ def sum_product(nodes, edges, node_potentials, edge_potentials):
                     for x_i in x_i_alphabet:
                         entry = \
                             node_potentials[current_node][x_i] * \
-                            edge_potentials[(current_node, neighbor)][x_i][x_j]
+                            edge_potentials[(current_node, child)][x_i][x_j]
 
-                        # include incoming message: only one message
-                        if parent != None:
-                            entry *= messages[(parent, current_node)][x_i]
+                        # include incoming messages to current node
+                        for neighbor in edges[current_node]:
+                            if neighbor == child: continue
+                            entry *= messages[(neighbor, current_node)][x_i]
 
                         message[x_j] += entry
 
-                messages[(current_node, neighbor)] = message
-                fringe.append(neighbor)
-
-        parent = current_node
+                messages[(current_node, child)] = message
+                fringe.append(child)
 
 
     # compute the marginals
@@ -530,6 +528,8 @@ def sum_product(nodes, edges, node_potentials, edge_potentials):
         for x_i in alphabet:
             marginals[node][x_i] /= total
 
+    print("\nmessages:", messages)
+    print("\n")
 
     return marginals
 
@@ -677,8 +677,8 @@ def main():
 
 
     print('[Sum-Product tests based on earlier course material]')
-    test_sum_product1()
-#     test_sum_product2()
+#    test_sum_product1()
+    test_sum_product2()
 
 
 if __name__ == '__main__':
