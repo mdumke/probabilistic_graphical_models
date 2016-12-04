@@ -422,15 +422,117 @@ def sum_product(nodes, edges, node_potentials, edge_potentials):
     marginals = {}
     messages = {}
 
-    # -------------------------------------------------------------------------
-    # YOUR CODE HERE
-    #
+    def compute_upward_message(from_node, to_node):
+        """
+        computes m_{i -> j} = sum_{x_i} phi_i(x_i) * psi_i_j(x_i, x_j) * msgs
+        """
+        message = {}
 
-    #
-    # END OF YOUR CODE
-    # -------------------------------------------------------------------------
+        x_i_alphabet = list(node_potentials[from_node].keys())
+        x_j_alphabet = list(node_potentials[to_node].keys())
+
+        for x_j in x_j_alphabet:
+            message[x_j] = 0
+            entry = 0
+
+            for x_i in x_i_alphabet:
+                entry = \
+                    node_potentials[from_node][x_i] * \
+                    edge_potentials[(from_node, to_node)][x_i][x_j]
+
+                # include incoming messages: check for each neighbor except to_node
+                for neighbor in edges[from_node]:
+                    if neighbor == to_node: continue
+
+                    try:
+                        entry *= messages[(neighbor, from_node)][x_i]
+                    except:
+                        compute_upward_message(neighbor, from_node)
+                        entry *= messages[(neighbor, from_node)][x_i]
+
+                message[x_j] += entry
+
+        messages[(from_node, to_node)] = message
+
+
+    # compute messages from leafes to root
+    root_node = next(iter(nodes))
+
+    for neighbor in edges[root_node]:
+        compute_upward_message(neighbor, root_node)
+
+
+    # compute messages from root to leafes
+    fringe = [root_node]
+    visited = {node: False for node in nodes}
+    parent = None
+
+    while len(fringe) > 0:
+        current_node = fringe.pop()
+        visited[current_node] = True
+
+        for neighbor in edges[current_node]:
+            if not visited[neighbor]:
+                # add downwards message
+                message = {}
+
+                x_i_alphabet = list(node_potentials[current_node].keys())
+                x_j_alphabet = list(node_potentials[neighbor].keys())
+
+                for x_j in x_j_alphabet:
+                    message[x_j] = 0
+                    entry = 0
+
+                    for x_i in x_i_alphabet:
+                        entry = \
+                            node_potentials[current_node][x_i] * \
+                            edge_potentials[(current_node, neighbor)][x_i][x_j]
+
+                        # include incoming message: only one message
+                        if parent != None:
+                            entry *= messages[(parent, current_node)][x_i]
+
+                        message[x_j] += entry
+
+                messages[(current_node, neighbor)] = message
+                fringe.append(neighbor)
+
+        parent = current_node
+
+
+    # compute the marginals
+    for node in nodes:
+        marginals[node] = {}
+
+        x_i_alphabet = list(node_potentials[node].keys())
+
+        for x_i in x_i_alphabet:
+            entry = node_potentials[node][x_i]
+
+            for neighbor in edges[node]:
+                try:
+                    entry *= messages[(neighbor, node)][x_i]
+                except:
+                    pass
+
+            if entry > 0:
+                marginals[node][x_i] = entry
+
+
+    # normalize marginals
+    for node in marginals:
+        alphabet = list(marginals[node].keys())
+        total = 0
+
+        for x_i in alphabet:
+            total += marginals[node][x_i]
+
+        for x_i in alphabet:
+            marginals[node][x_i] /= total
+
 
     return marginals
+
 
 
 def test_sum_product1():
@@ -457,11 +559,11 @@ def test_sum_product1():
            2: {0: 0.8333333333333334, 1: 0.16666666666666666},
            3: {0: 0.16666666666666666, 1: 0.8333333333333334}})
 
-    node_potentials = {1: {0: 1, 1: 1}, 2: {0: 1, 1: 1}, 3: {0: 1, 1: 1}}
-    print(compute_marginals_given_observations(nodes, edges,
-                                               node_potentials,
-                                               edge_potentials,
-                                               observations={1: 0}))
+#     node_potentials = {1: {0: 1, 1: 1}, 2: {0: 1, 1: 1}, 3: {0: 1, 1: 1}}
+#     print(compute_marginals_given_observations(nodes, edges,
+#                                                node_potentials,
+#                                                edge_potentials,
+#                                                observations={1: 0}))
 
 
 def test_sum_product2():
@@ -543,43 +645,40 @@ def compute_marginals_given_observations(nodes, edges, node_potentials,
 
 
 def main():
-    # get coconut oil data
-    observations = []
-    with open('coconut.csv', 'r') as f:
-        for line in f.readlines():
-            pieces = line.split(',')
-            if len(pieces) == 5:
-                observations.append([int(pieces[1]),
-                                     int(pieces[2]),
-                                     int(pieces[3]),
-                                     int(pieces[4])])
-    observations = np.array(observations)
+#     # get coconut oil data
+#     observations = []
+#     with open('coconut.csv', 'r') as f:
+#         for line in f.readlines():
+#             pieces = line.split(',')
+#             if len(pieces) == 5:
+#                 observations.append([int(pieces[1]),
+#                                      int(pieces[2]),
+#                                      int(pieces[3]),
+#                                      int(pieces[4])])
+#     observations = np.array(observations)
+# 
+#     best_tree = chow_liu(observations)
+#     print(best_tree)
+# 
+#     node_potentials, edge_potentials = learn_tree_parameters(observations,
+#                                                              best_tree)
+#     print(node_potentials)
+#     print(edge_potentials)
+# 
+# 
+#     marginals = compute_marginals_given_observations(
+#         {0, 1, 2, 3},
+#         convert_tree_as_set_to_adjacencies(best_tree),
+#         node_potentials,
+#         edge_potentials,
+#         observations={1: +1, 2: +1})
+#     print(marginals)
+#     print()
 
-    best_tree = chow_liu(observations)
-    print(best_tree)
-
-    node_potentials, edge_potentials = learn_tree_parameters(observations,
-                                                             best_tree)
-    print(node_potentials)
-    print(edge_potentials)
-
-
-#     return
-
-
-
-    marginals = compute_marginals_given_observations(
-        {0, 1, 2, 3},
-        convert_tree_as_set_to_adjacencies(best_tree),
-        node_potentials,
-        edge_potentials,
-        observations={1: +1, 2: +1})
-    print(marginals)
-    print()
 
     print('[Sum-Product tests based on earlier course material]')
     test_sum_product1()
-    test_sum_product2()
+#     test_sum_product2()
 
 
 if __name__ == '__main__':
