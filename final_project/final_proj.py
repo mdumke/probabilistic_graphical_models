@@ -528,8 +528,6 @@ def sum_product(nodes, edges, node_potentials, edge_potentials):
         for x_i in alphabet:
             marginals[node][x_i] /= total
 
-    print("\nmessages:", messages)
-    print("\n")
 
     return marginals
 
@@ -559,11 +557,11 @@ def test_sum_product1():
            2: {0: 0.8333333333333334, 1: 0.16666666666666666},
            3: {0: 0.16666666666666666, 1: 0.8333333333333334}})
 
-#     node_potentials = {1: {0: 1, 1: 1}, 2: {0: 1, 1: 1}, 3: {0: 1, 1: 1}}
-#     print(compute_marginals_given_observations(nodes, edges,
-#                                                node_potentials,
-#                                                edge_potentials,
-#                                                observations={1: 0}))
+    node_potentials = {1: {0: 1, 1: 1}, 2: {0: 1, 1: 1}, 3: {0: 1, 1: 1}}
+    print(compute_marginals_given_observations(nodes, edges,
+                                               node_potentials,
+                                               edge_potentials,
+                                               observations={1: 0}))
 
 
 def test_sum_product2():
@@ -629,14 +627,14 @@ def compute_marginals_given_observations(nodes, edges, node_potentials,
     sum_product())
     """
     new_node_potentials = {}
+    observed_nodes = list(observations.keys())
 
-    # -------------------------------------------------------------------------
-    # YOUR CODE HERE
-    #
-
-    #
-    # END OF YOUR CODE
-    # -------------------------------------------------------------------------
+    # update node potentials
+    for node, potentials in node_potentials.items():
+        if node in observed_nodes:
+            new_node_potentials[node] = {observations[node]: 1}
+        else:
+            new_node_potentials[node] = potentials
 
     return sum_product(nodes,
                        edges,
@@ -645,39 +643,39 @@ def compute_marginals_given_observations(nodes, edges, node_potentials,
 
 
 def main():
-#     # get coconut oil data
-#     observations = []
-#     with open('coconut.csv', 'r') as f:
-#         for line in f.readlines():
-#             pieces = line.split(',')
-#             if len(pieces) == 5:
-#                 observations.append([int(pieces[1]),
-#                                      int(pieces[2]),
-#                                      int(pieces[3]),
-#                                      int(pieces[4])])
-#     observations = np.array(observations)
-# 
-#     best_tree = chow_liu(observations)
-#     print(best_tree)
-# 
-#     node_potentials, edge_potentials = learn_tree_parameters(observations,
-#                                                              best_tree)
-#     print(node_potentials)
-#     print(edge_potentials)
-# 
-# 
-#     marginals = compute_marginals_given_observations(
-#         {0, 1, 2, 3},
-#         convert_tree_as_set_to_adjacencies(best_tree),
-#         node_potentials,
-#         edge_potentials,
-#         observations={1: +1, 2: +1})
-#     print(marginals)
-#     print()
+    # get coconut oil data
+    observations = []
+    with open('coconut.csv', 'r') as f:
+        for line in f.readlines():
+            pieces = line.split(',')
+            if len(pieces) == 5:
+                observations.append([int(pieces[1]),
+                                     int(pieces[2]),
+                                     int(pieces[3]),
+                                     int(pieces[4])])
+    observations = np.array(observations)
+
+    best_tree = chow_liu(observations)
+    print(best_tree)
+
+    node_potentials, edge_potentials = learn_tree_parameters(observations,
+                                                             best_tree)
+    print(node_potentials)
+    print(edge_potentials)
+
+
+    marginals = compute_marginals_given_observations(
+        {0, 1, 2, 3},
+        convert_tree_as_set_to_adjacencies(best_tree),
+        node_potentials,
+        edge_potentials,
+        observations={1: +1, 2: +1})
+    print(marginals)
+    print()
 
 
     print('[Sum-Product tests based on earlier course material]')
-#    test_sum_product1()
+    test_sum_product1()
     test_sum_product2()
 
 
